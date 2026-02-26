@@ -1,24 +1,7 @@
-# Python
+.venv/
+venv/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Virtual environment
-venv/
-.env
-
-# Database
-*.db
-
-# Logs
-logs/*.log
+honeypot.db
+server.key
 logs/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
