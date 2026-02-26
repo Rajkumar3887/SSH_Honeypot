@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+
+  # ── SSH Honeypot ───────────────────────────────────────────────────────────
+  honeypot:
+    build: .
+    container_name: ssh_honeypot
+    restart: unless-stopped
+    ports:
+      - "2222:2222"    # expose honeypot SSH port
+    volumes:
+      - ./logs:/opt/honeypot/logs          # persist logs to host
+      - ./honeypot.db:/opt/honeypot/honeypot.db  # persist SQLite DB
+    environment:
+      - BIND_HOST=0.0.0.0
+      - BIND_PORT=2222
+      - AUTH_USER=admin
+      - AUTH_PASS=password
+      - LOG_DIR=/opt/honeypot/logs
+      - DB_ENABLED=true
+      - DB_PATH=/opt/honeypot/honeypot.db
+      - WAZUH_ENABLED=true
+      # Set WAZUH_SYSLOG_HOST to your Wazuh manager IP for real-time alerts
+      # - WAZUH_SYSLOG_HOST=192.168.1.100
+    networks:
+      - honeypot_net
+    command: ["--host", "0.0.0.0", "--port", "2222", "--open"]
+
+  # ── Wazuh Agent (optional sidecar) ────────────────────────────────────────
+  # Uncomment to run a Wazuh agent alongside the honeypot.
+  # Replace WAZUH_MANAGER_IP with your Wazuh server address.
+  #
+  # wazuh_agent:
+  #   image: wazuh/wazuh-agent:4.7.0
+  #   container_name: wazuh_agent
+  #   restart: unless-stopped
+  #   environment:
+  #     - WAZUH_MANAGER=WAZUH_MANAGER_IP
+  #     - WAZUH_AGENT_NAME=ssh_honeypot
+  #   volumes:
+  #     - ./logs:/opt/honeypot/logs:ro
+  #     - ./wazuh/ossec.conf:/var/ossec/etc/ossec.conf:ro
+  #   depends_on:
+  #     - honeypot
+  #   networks:
+  #     - honeypot_net
+
+networks:
+  honeypot_net:
+    driver: bridge

@@ -1,0 +1,81 @@
+<!--
+  Custom Wazuh Decoders for SSH Honeypot
+  ========================================
+  Place this file at:
+    /var/ossec/etc/decoders/honeypot_decoders.xml
+  on your Wazuh manager node, then restart wazuh-manager.
+
+  The honeypot writes all log entries as JSON objects on a single line.
+  Wazuh's built-in JSON decoder handles the top-level fields automatically,
+  but we add named decoders here so Wazuh populates srcip, srcuser, etc.
+  fields correctly in every alert.
+-->
+
+<decoder name="honeypot_base">
+  <!-- Match any line that contains our event_type marker -->
+  <prematch>{"timestamp"</prematch>
+</decoder>
+
+<!-- ── SSH authentication attempts ──────────────────────────────────────── -->
+<decoder name="honeypot_auth">
+  <parent>honeypot_base</parent>
+  <prematch>"event_type": "ssh_auth_attempt"</prematch>
+  <regex>"source_ip": "(\S+)".*"username": "(\S+)".*"password": "(\S+)".*"result": "(\S+)"</regex>
+  <order>srcip, srcuser, extra_data, status</order>
+</decoder>
+
+<!-- ── Command execution ─────────────────────────────────────────────────── -->
+<decoder name="honeypot_command">
+  <parent>honeypot_base</parent>
+  <prematch>"event_type": "honeypot_command"</prematch>
+  <regex>"source_ip": "(\S+)".*"username": "(\S+)".*"command": "([^"]+)"</regex>
+  <order>srcip, srcuser, extra_data</order>
+</decoder>
+
+<!-- ── Threat detection ──────────────────────────────────────────────────── -->
+<decoder name="honeypot_threat">
+  <parent>honeypot_base</parent>
+  <prematch>"event_type": "honeypot_threat"</prematch>
+  <regex>"source_ip": "(\S+)".*"username": "(\S+)".*"category": "(\S+)".*"severity": "(\S+)"</regex>
+  <order>srcip, srcuser, extra_data, status</order>
+</decoder>
+
+<!-- ── File access ───────────────────────────────────────────────────────── -->
+<decoder name="honeypot_file_access">
+  <parent>honeypot_base</parent>
+  <prematch>"event_type": "honeypot_file_access"</prematch>
+  <regex>"source_ip": "(\S+)".*"username": "(\S+)".*"file_path": "([^"]+)"</regex>
+  <order>srcip, srcuser, extra_data</order>
+</decoder>
+
+<!-- ── Session lifecycle ─────────────────────────────────────────────────── -->
+<decoder name="honeypot_session">
+  <parent>honeypot_base</parent>
+  <prematch>"event_type": "session_</prematch>
+  <regex>"source_ip": "(\S+)"</regex>
+  <order>srcip</order>
+</decoder>
+
+<!-- ── Brute-force specific ──────────────────────────────────────────────── -->
+<decoder name="honeypot_brute">
+  <parent>honeypot_base</parent>
+  <prematch>"category": "BRUTE_FORCE"</prematch>
+  <regex>"source_ip": "(\S+)".*"username": "(\S+)".*"password": "([^"]+)"</regex>
+  <order>srcip, srcuser, extra_data</order>
+</decoder>
+
+<!-- ── wget / curl downloads ────────────────────────────────────────────── -->
+<decoder name="honeypot_download">
+  <parent>honeypot_base</parent>
+  <prematch>"event_type": "wget"\|"event_type": "curl"</prematch>
+  <regex>"source_ip": "(\S+)".*"url": "([^"]+)"</regex>
+  <order>srcip, url</order>
+</decoder>
+
+<!-- ── Privilege escalation (su / sudo) ──────────────────────────────────── -->
+<decoder name="honeypot_privesc">
+  <parent>honeypot_base</parent>
+  <prematch>"event_type": "su_attempt"\|"event_type": "sudo_attempt"\|"event_type": "root_shell"</prematch>
+  <regex>"source_ip": "(\S+)".*"username":\s*"(\S+)"</regex>
+  <order>srcip, srcuser</order>
+</decoder>

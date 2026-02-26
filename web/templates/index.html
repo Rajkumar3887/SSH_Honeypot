@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🍯 Honeypot · Live Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="/static/charts.js"></script>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;
+  --green:#3fb950;--blue:#58a6ff;--orange:#d29922;
+  --red:#f85149;--purple:#bc8cff;--yellow:#e3b341;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",monospace;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* NAV */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:11px 22px;
+  background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:999}
+.nav-brand{font-size:17px;font-weight:700;letter-spacing:.8px}
+.nav-brand span{color:var(--orange)}
+.nav-right{display:flex;align-items:center;gap:14px;font-size:12px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+.dot.off{background:var(--red);animation:none}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(63,185,80,.5)}50%{box-shadow:0 0 0 5px rgba(63,185,80,0)}}
+#clock{color:var(--muted);font-family:monospace}
+
+/* LAYOUT */
+.wrap{padding:18px 22px;max-width:1700px;margin:0 auto}
+
+/* STAT CARDS */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:14px;cursor:default;transition:border-color .2s}
+.stat:hover{border-color:var(--blue)}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.stat-val{font-size:26px;font-weight:700;margin:5px 0 2px}
+.stat-sub{font-size:10px;color:var(--muted)}
+
+/* GRID */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.span2{grid-column:1/-1}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.card-hd{display:flex;align-items:center;justify-content:space-between;
+  padding:11px 15px;border-bottom:1px solid var(--border);
+  font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.card-hd a{color:var(--blue);text-decoration:none;font-weight:400;font-size:10px}
+.card-bd{padding:13px}
+
+/* MAP */
+#map{height:330px}
+
+/* FEED */
+.feed{max-height:370px;overflow-y:auto;font-size:12px;font-family:monospace}
+.feed::-webkit-scrollbar{width:3px}
+.feed::-webkit-scrollbar-thumb{background:var(--border)}
+.fi{display:flex;align-items:flex-start;gap:7px;padding:6px 10px;
+  border-bottom:1px solid var(--bg3);animation:fi .25s ease}
+@keyframes fi{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.fi:hover{background:var(--bg3)}
+.fi a{color:inherit;text-decoration:none}
+.fi a:hover .fip{text-decoration:underline}
+.badge{flex-shrink:0;font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;text-transform:uppercase}
+.b-connection  {background:#1a3a5c;color:var(--blue)}
+.b-auth        {background:#3a2a0a;color:var(--orange)}
+.b-threat      {background:#3a1010;color:var(--red)}
+.b-file_access {background:#2a1a3a;color:var(--purple)}
+.b-high_priority_alert{background:var(--red);color:#fff}
+.b-command     {background:#1a3a1a;color:var(--green)}
+.fi-body{flex:1;min-width:0}
+.fip{color:var(--blue);font-weight:600}
+.fic{color:var(--text);word-break:break-all}
+.fig{color:var(--muted);font-size:10px}
+.fi-score{flex-shrink:0;font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px}
+.fi-ts{flex-shrink:0;color:var(--muted);font-size:10px}
+
+/* CHARTS */
+.ch{position:relative;height:230px}
+.ch-sm{height:190px}
+
+/* SCORE BARS */
+.sbars{display:flex;flex-direction:column;gap:7px}
+.srow{display:flex;align-items:center;gap:7px;font-size:11px}
+.sip{width:115px;color:var(--blue);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.sip:hover{text-decoration:underline}
+.sbw{flex:1;background:var(--bg3);border-radius:3px;height:13px;overflow:hidden}
+.sb{height:100%;border-radius:3px;transition:width .5s}
+.sn{width:32px;text-align:right;font-weight:700;flex-shrink:0}
+
+/* HP ALERTS */
+.hp-wrap{max-height:270px;overflow-y:auto}
+.hpa{background:#1e0808;border:1px solid #3a1515;border-radius:5px;
+  padding:9px 11px;margin-bottom:7px;font-size:11px;animation:fi .3s ease}
+.hpa-hd{display:flex;justify-content:space-between;margin-bottom:3px}
+.hpa-ip{color:var(--red);font-weight:700;cursor:pointer}
+.hpa-ip:hover{text-decoration:underline}
+.hpa-score{color:var(--red);font-weight:700}
+.hpa-msg{color:var(--muted)}
+.hpa-geo{color:var(--muted);font-size:10px;margin-top:2px}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-size:9px;
+  padding:6px 8px;text-align:left;border-bottom:1px solid var(--border)}
+td{padding:6px 8px;border-bottom:1px solid var(--bg3)}
+tr:hover td{background:var(--bg3)}
+.tbl-wrap{max-height:250px;overflow-y:auto}
+.tbl-wrap::-webkit-scrollbar{width:3px}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* SEVERITY PILLS */
+.sv{font-size:9px;padding:2px 5px;border-radius:8px;font-weight:700;text-transform:uppercase}
+.sv-critical{background:#3a0a0a;color:var(--red)}
+.sv-high    {background:#3a2005;color:var(--orange)}
+.sv-medium  {background:#3a3005;color:var(--yellow)}
+.sv-low     {background:#0a3a0a;color:var(--green)}
+
+/* CMD HIST */
+.ch-wrap{position:relative;height:260px}
+
+/* EMPTY */
+.empty{color:var(--muted);font-size:11px;text-align:center;padding:24px}
+
+/* scrollbar global */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-brand">🍯 <span>HONEYPOT</span> DASHBOARD</div>
+  <div class="nav-right">
+    <div id="dot" class="dot off"></div>
+    <span id="sse-status" style="color:var(--muted)">Connecting…</span>
+    <span id="clock"></span>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- STAT CARDS -->
+  <div class="stats">
+    <div class="stat"><div class="stat-lbl">Connections</div><div class="stat-val" id="s-conn" style="color:var(--blue)">0</div><div class="stat-sub">all time</div></div>
+    <div class="stat"><div class="stat-lbl">Auth Attempts</div><div class="stat-val" id="s-auth" style="color:var(--orange)">0</div><div class="stat-sub">credential guesses</div></div>
+    <div class="stat"><div class="stat-lbl">Unique IPs</div><div class="stat-val" id="s-ips" style="color:var(--purple)">0</div><div class="stat-sub">distinct sources</div></div>
+    <div class="stat"><div class="stat-lbl">Threats</div><div class="stat-val" id="s-thr" style="color:var(--red)">0</div><div class="stat-sub">total alerts</div></div>
+    <div class="stat"><div class="stat-lbl">Critical/High</div><div class="stat-val" id="s-crit" style="color:var(--red)">0</div><div class="stat-sub">urgent alerts</div></div>
+    <div class="stat"><div class="stat-lbl">Commands</div><div class="stat-val" id="s-cmd" style="color:var(--green)">0</div><div class="stat-sub">shell executions</div></div>
+    <div class="stat"><div class="stat-lbl">HP Alerts</div><div class="stat-val" id="s-hp" style="color:var(--red)">0</div><div class="stat-sub">score &gt; 70</div></div>
+    <div class="stat"><div class="stat-lbl">Active Sessions</div><div class="stat-val" id="s-sess" style="color:var(--yellow)">0</div><div class="stat-sub">live attackers</div></div>
+    <div class="stat"><div class="stat-lbl">Max Score</div><div class="stat-val" id="s-max" style="color:var(--red)">0</div><div class="stat-sub">0 – 100</div></div>
+  </div>
+
+  <!-- ROW 1: map + feed -->
+  <div class="grid2" style="grid-template-columns:1.35fr 1fr">
+    <div class="card">
+      <div class="card-hd">🌍 Attacker World Map <span style="color:var(--muted);font-weight:400">GeoIP enriched</span></div>
+      <div id="map"></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">⚡ Live Event Feed <span id="feed-cnt" style="color:var(--muted);font-weight:400">0 events</span></div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+
+  <!-- ROW 2: doughnut + timeline + stacked -->
+  <div class="grid3">
+    <div class="card">
+      <div class="card-hd">🗂 Threat Categories</div>
+      <div class="card-bd"><div class="ch"><canvas id="catChart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">📈 Threat Timeline (24h)</div>
+      <div class="card-bd"><div class="ch"><canvas id="tlChart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">📊 Severity Breakdown (24h)</div>
+      <div class="card-bd"><div class="ch"><canvas id="sevChart"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- ROW 3: radar + scores + hp alerts -->
+  <div class="grid3">
+    <div class="card">
+      <div class="card-hd">🕸 Threat Surface Radar</div>
+      <div class="card-bd"><div class="ch"><canvas id="radarChart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">🎯 Session Threat Scores</div>
+      <div class="card-bd">
+        <div class="sbars" id="scoreList"><div class="empty">No active sessions</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd" style="color:var(--red)">🚨 High-Priority Alerts (score &gt; 70)</div>
+      <div class="card-bd" style="padding:8px">
+        <div class="hp-wrap" id="hpList"><div class="empty">No critical alerts</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 4: top commands chart + attackers table -->
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hd">💻 Top Commands</div>
+      <div class="card-bd"><div class="ch-wrap"><canvas id="cmdChart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">🏴‍☠️ Top Attackers</div>
+      <div class="card-bd" style="padding:0">
+        <div class="tbl-wrap">
+          <table><thead><tr><th>IP</th><th>Country</th><th>Attempts</th><th>Score</th><th>ISP</th></tr></thead>
+          <tbody id="atkTable"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 5: recent threats -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hd">⚠️ Recent Threats</div>
+    <div class="card-bd" style="padding:0">
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Time</th><th>IP</th><th>Category</th><th>MITRE</th><th>Severity</th><th>Score</th><th>Command</th></tr></thead>
+        <tbody id="thrTable"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+HPC.setDefaults();
+
+/* ── CLOCK ── */
+function updateClock(){
+  document.getElementById("clock").textContent =
+    new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour12: false,
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit"
+    }) + " IST";
+}
+updateClock(); setInterval(updateClock, 1000);
+
+/* ── MAP ── */
+const map=L.map("map",{zoomControl:true,scrollWheelZoom:true}).setView([20,0],2);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+  attribution:"© OpenStreetMap © CARTO",subdomains:"abcd",maxZoom:19}).addTo(map);
+const mkrs={};
+function addMarker(ip,lat,lon,country,city,score){
+  if(!lat&&!lon)return;
+  const c=HPC.scoreColor(score), r=Math.max(5,Math.min(18,5+score/8));
+  if(mkrs[ip])map.removeLayer(mkrs[ip]);
+  mkrs[ip]=L.circleMarker([lat,lon],{radius:r,color:c,fillColor:c,fillOpacity:.7,weight:1.5})
+    .bindPopup(`<b>${ip}</b><br>${city?city+", ":""}${country}<br>Score: <b>${score}</b>`)
+    .addTo(map);
+}
+fetch("/api/geo/attackers").then(r=>r.json())
+  .then(d=>d.forEach(a=>addMarker(a.ip,a.lat,a.lon,a.country,a.city,a.score)));
+
+/* ── CHARTS ── */
+const catChart   = HPC.makeDoughnut(document.getElementById("catChart").getContext("2d"));
+const tlChart    = HPC.makeTimeline(document.getElementById("tlChart").getContext("2d"));
+const sevChart   = HPC.makeStackedBar(document.getElementById("sevChart").getContext("2d"));
+const radarChart = HPC.makeRadar(document.getElementById("radarChart").getContext("2d"));
+let   cmdChart   = null;
+
+function refreshCat(){
+  fetch("/api/threats/categories").then(r=>r.json()).then(d=>{
+    catChart.data.labels=d.map(x=>x.category);
+    catChart.data.datasets[0].data=d.map(x=>x.cnt);
+    catChart.data.datasets[0].backgroundColor=d.map(x=>(HPC.CAT_COLORS[x.category]||"#666")+"cc");
+    catChart.data.datasets[0].borderColor=d.map(x=>HPC.CAT_COLORS[x.category]||"#666");
+    catChart.update("none");
+    // update radar too
+    const vals=["RECON","LATERAL","EXFIL","PERSISTENCE","PRIVESC","CRED_HUNT","MALWARE"]
+      .map(c=>{const f=d.find(x=>x.category===c);return f?f.cnt:0});
+    radarChart.data.datasets[0].data=vals;
+    radarChart.update("none");
+  });
+}
+function refreshTl(){
+  fetch("/api/threats/timeline").then(r=>r.json()).then(d=>HPC.updateTimeline(tlChart,d));
+}
+function refreshSev(){
+  fetch("/api/threats/severity_timeline").then(r=>r.json()).then(d=>HPC.updateStackedBar(sevChart,d));
+}
+function refreshCmd(){
+  fetch("/api/commands/top").then(r=>r.json()).then(d=>{
+    const el=document.getElementById("cmdChart");
+    const ctx=el.getContext("2d");
+    if(cmdChart)cmdChart.destroy();
+    cmdChart=HPC.makeCmdBar(ctx,d.map(x=>x.cnt),d.map(x=>x.command));
+  });
+}
+
+/* ── STATS ── */
+function refreshStats(){
+  fetch("/api/stats").then(r=>r.json()).then(s=>{
+    document.getElementById("s-conn").textContent =s.total_connections;
+    document.getElementById("s-auth").textContent =s.total_auth_attempts;
+    document.getElementById("s-ips").textContent  =s.unique_ips;
+    document.getElementById("s-thr").textContent  =s.total_threats;
+    document.getElementById("s-crit").textContent =s.critical_threats;
+    document.getElementById("s-cmd").textContent  =s.total_commands;
+    document.getElementById("s-hp").textContent   =s.high_priority_alerts;
+    document.getElementById("s-sess").textContent =s.active_sessions;
+    document.getElementById("s-max").textContent  =s.max_session_score;
+  });
+}
+
+/* ── SCORE BARS ── */
+function refreshScores(){
+  fetch("/api/scores").then(r=>r.json()).then(d=>{
+    const el=document.getElementById("scoreList");
+    el.innerHTML="";
+    if(!d.length){el.innerHTML='<div class="empty">No active sessions</div>';return}
+    d.slice(0,12).forEach(s=>{
+      const c=HPC.scoreColor(s.score);
+      el.insertAdjacentHTML("beforeend",`
+        <div class="srow">
+          <span class="sip" onclick="location='/session/${HPC.escHtml(s.ip)}'" title="${HPC.escHtml(s.ip)}">${HPC.escHtml(s.ip)}</span>
+          <div class="sbw"><div class="sb" style="width:${s.score}%;background:${c}"></div></div>
+          <span class="sn" style="color:${c}">${s.score}</span>
+        </div>`);
+    });
+  });
+}
+
+/* ── HP ALERTS ── */
+const MAX_HP=25;
+function addHP(ev){
+  const el=document.getElementById("hpList");
+  const ph=el.querySelector(".empty");if(ph)el.removeChild(ph);
+  if(el.children.length>=MAX_HP)el.removeChild(el.lastChild);
+  const geo=ev.geo||{};
+  el.insertAdjacentHTML("afterbegin",`
+    <div class="hpa">
+      <div class="hpa-hd">
+        <span class="hpa-ip" onclick="location='/session/${HPC.escHtml(ev.source_ip||'')}'">🚨 ${HPC.escHtml(ev.source_ip||"?")}</span>
+        <span class="hpa-score">${ev.session_score||0}/100</span>
+      </div>
+      <div class="hpa-msg">${HPC.escHtml(ev.description||ev.message||"")}</div>
+      <div class="hpa-geo">📍 ${HPC.escHtml(geo.city?geo.city+", "+geo.country:geo.country||"Unknown")} · ${HPC.escHtml(geo.isp||"")}</div>
+    </div>`);
+}
+function loadHP(){
+  fetch("/api/alerts/high_priority").then(r=>r.json()).then(d=>{
+    d.forEach(a=>addHP({source_ip:a.source_ip,session_score:a.session_score||0,
+      message:a.message,geo:{country:"",isp:""}}));
+  });
+}
+
+/* ── ATTACKERS TABLE ── */
+function refreshAtk(){
+  fetch("/api/attackers/top").then(r=>r.json()).then(d=>{
+    const tb=document.getElementById("atkTable");
+    if(!d.length){tb.innerHTML='<tr><td colspan="5" class="empty">No data yet</td></tr>';return}
+    tb.innerHTML=d.map(a=>{
+      const sc=a.score||0, c=HPC.scoreColor(sc);
+      return `<tr>
+        <td><a href="/session/${HPC.escHtml(a.source_ip)}" style="color:var(--blue)">${HPC.escHtml(a.source_ip)}</a></td>
+        <td>${HPC.escHtml(a.country||"?")}</td>
+        <td>${a.attempts}</td>
+        <td style="font-weight:700;color:${c}">${sc}</td>
+        <td style="color:var(--muted)">${HPC.escHtml(a.isp||"")}</td>
+      </tr>`;
+    }).join("");
+  });
+}
+
+/* ── THREATS TABLE ── */
+function refreshThr(){
+  fetch("/api/threats/recent").then(r=>r.json()).then(d=>{
+    const tb=document.getElementById("thrTable");
+    if(!d.length){tb.innerHTML='<tr><td colspan="7" class="empty">No threats yet</td></tr>';return}
+    tb.innerHTML=d.slice(0,25).map(t=>{
+      const sev=(t.severity||"low").toLowerCase();
+      const sc=t.session_score||0; const c=HPC.scoreColor(sc);
+      return `<tr>
+        <td style="color:var(--muted)">${HPC.fmtTs(t.detected_at)}</td>
+        <td><a href="/session/${HPC.escHtml(t.source_ip||'')}" style="color:var(--blue)">${HPC.escHtml(t.source_ip||"?")}</a></td>
+        <td><span style="color:${HPC.CAT_COLORS[t.category]||'#666'}">${HPC.escHtml(t.category||"?")}</span></td>
+        <td style="color:var(--muted);font-size:10px">${HPC.escHtml(t.mitre_id||"")}</td>
+        <td><span class="sv sv-${sev}">${sev}</span></td>
+        <td style="font-weight:700;color:${c}">${sc}</td>
+        <td style="font-family:monospace;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${HPC.escHtml((t.command||"").substring(0,60))}</td>
+      </tr>`;
+    }).join("");
+  });
+}
+
+/* ── FEED ── */
+let feedCnt=0;
+const MAX_FEED=150;
+function addFeed(ev){
+  const feed=document.getElementById("feed");
+  if(feed.children.length>=MAX_FEED)feed.removeChild(feed.lastChild);
+  const type=ev.event_type||"", ip=ev.source_ip||"?";
+  const geo=ev.geo||{}, sc=ev.session_score||0;
+  const ts=HPC.fmtTs(ev.timestamp);
+  const c=HPC.scoreColor(sc);
+  let body="";
+  if(type==="threat"||type==="high_priority_alert")
+    body=`<span class="fip">${HPC.escHtml(ip)}</span> → <span class="fic">${HPC.escHtml(ev.command||"")}</span>`;
+  else if(type==="auth")
+    body=`<span class="fip">${HPC.escHtml(ip)}</span> auth <b>${HPC.escHtml(ev.username||"")}</b> ${ev.success?"✓ OK":"✗ FAIL"}`;
+  else if(type==="connection")
+    body=`<span class="fip">${HPC.escHtml(ip)}</span> connected`;
+  else if(type==="file_access")
+    body=`<span class="fip">${HPC.escHtml(ip)}</span> read <span class="fic">${HPC.escHtml(ev.command||"")}</span>`;
+  else if(type==="command")
+    body=`<span class="fip">${HPC.escHtml(ip)}</span> $ <span class="fic">${HPC.escHtml(ev.command||"")}</span>`;
+  else return;
+  const geoStr=geo.city?`${geo.city}, ${geo.country}`:geo.country||"";
+  feed.insertAdjacentHTML("afterbegin",`
+    <div class="fi">
+      <span class="badge b-${type}">${type.replace(/_/g," ")}</span>
+      <a href="/session/${HPC.escHtml(ip)}" style="flex:1;min-width:0;text-decoration:none">
+        <div class="fi-body">
+          ${body}
+          ${geoStr?`<div class="fig">📍 ${HPC.escHtml(geoStr)}</div>`:""}
+        </div>
+      </a>
+      <span class="fi-score" style="background:${c}22;color:${c}">${sc}</span>
+      <span class="fi-ts">${ts}</span>
+    </div>`);
+  document.getElementById("feed-cnt").textContent=`${++feedCnt} events`;
+}
+
+/* ── SSE ── */
+let sse, rTimer=null;
+function scheduleRefresh(){
+  if(rTimer)return;
+  rTimer=setTimeout(()=>{
+    refreshStats();refreshScores();refreshCat();refreshTl();
+    refreshSev();refreshCmd();refreshAtk();refreshThr();
+    rTimer=null;
+  },1200);
+}
+function connectSSE(){
+  sse=new EventSource("/events");
+  sse.onopen=()=>{
+    document.getElementById("dot").classList.remove("off");
+    document.getElementById("sse-status").textContent="Live";
+  };
+  sse.onmessage=e=>{
+    let ev; try{ev=JSON.parse(e.data)}catch{return}
+    if(ev.event_type==="heartbeat"||ev.event_type==="connected")return;
+    addFeed(ev);
+    if(ev.event_type==="high_priority_alert")addHP(ev);
+    if((ev.event_type==="connection"||ev.event_type==="threat")&&ev.geo)
+      addMarker(ev.source_ip,ev.geo.lat,ev.geo.lon,ev.geo.country,ev.geo.city,ev.session_score||0);
+    scheduleRefresh();
+  };
+  sse.onerror=()=>{
+    document.getElementById("dot").classList.add("off");
+    document.getElementById("sse-status").textContent="Reconnecting…";
+    sse.close();setTimeout(connectSSE,3000);
+  };
+}
+
+/* ── INIT ── */
+connectSSE();
+refreshStats();refreshScores();refreshCat();refreshTl();
+refreshSev();refreshCmd();refreshAtk();refreshThr();loadHP();
+setInterval(()=>{
+  refreshStats();refreshScores();refreshCat();refreshTl();
+  refreshSev();refreshCmd();refreshAtk();refreshThr();
+},20000);
+</script>
+</body>
+</html>
