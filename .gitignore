@@ -1,7 +1,24 @@
-.venv/
-venv/
+# Keys - NEVER commit
+server.key
+*.pem
+*.key
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Python
 __pycache__/
 *.pyc
-honeypot.db
-server.key
-logs/
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db

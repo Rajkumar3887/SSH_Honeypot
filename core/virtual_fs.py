@@ -24,7 +24,8 @@ def build_vfs():
         "/home/corpuser/projects":  ["config.yaml", "deploy.sh", "honeypot.py"],
         "/lib":                     [],
         "/proc":                    ["cpuinfo", "meminfo", "version"],
-        "/root":                    [],
+        "/root":                    [".bash_history", ".bashrc", ".ssh", ".local_exploits"],
+        "/root/.ssh":              ["authorized_keys", "id_rsa", "id_rsa.pub"],
         "/tmp":                     [],
         "/usr":                     ["bin", "lib", "local", "share"],
         "/usr/bin":                 [],
@@ -140,6 +141,39 @@ def build_vfs():
             "(root) CMD (run-parts /etc/cron.daily)\n"
             "Jan 10 08:01:00 ubuntu-server-01 systemd[1]: "
             "Started Session 4 of user corpuser.\n",
+
+        # ── Root home files (visible once attacker gets root) ─────────────────
+        "/root/.bashrc":
+            "# ~/.bashrc: executed by bash for non-login shells.\n"
+            "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"
+            "alias ll='ls -alF'\nalias la='ls -A'\nalias l='ls -CF'\n",
+
+        "/root/.bash_history":
+            "cat /etc/shadow\n"
+            "useradd -m -s /bin/bash backdoor\n"
+            "echo 'backdoor:toor' | chpasswd\n"
+            "crontab -e\n"
+            "ssh-keygen -t rsa -b 4096\n"
+            "cat /home/corpuser/secret.txt\n"
+            "find / -perm -4000 -type f 2>/dev/null\n",
+
+        "/root/.local_exploits":
+            "# Kernel: 5.4.0-42-generic\n"
+            "# Possible privesc paths found:\n"
+            "# [+] CVE-2021-4034 (PwnKit) - pkexec vulnerable version detected\n"
+            "# [+] CVE-2022-0847 (Dirty Pipe) - kernel < 5.16.11\n"
+            "# [+] SUID bash found: /usr/bin/bash -p\n"
+            "# [+] Writable cron: /etc/cron.d/\n"
+            "# [+] sudo -u#-1 (CVE-2019-14287) may work\n",
+
+        "/root/.ssh/id_rsa":
+            "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+            "b3BlbnNzaC1rZXktdjEAAAAA[FAKE KEY - HONEYPOT]\n"
+            "AAABAAABAQC3fake0key0data0here0nothing0real\n"
+            "-----END OPENSSH PRIVATE KEY-----\n",
+
+        "/root/.ssh/authorized_keys":
+            "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB[FAKE] root@ubuntu-server-01\n",
     }
 
     return vfs, file_contents

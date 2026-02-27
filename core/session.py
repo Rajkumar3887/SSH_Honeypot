@@ -8,9 +8,11 @@ system log (for operators).
 import logging
 import json
 import datetime
+from logging.handlers import RotatingFileHandler
+
+# IST = UTC+5:30
 _IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 def _now_ist(): return datetime.datetime.now(_IST).isoformat(timespec="seconds")
-from logging.handlers import RotatingFileHandler
 
 import paramiko
 
@@ -22,6 +24,7 @@ from config.settings import (
 )
 from core.ssh_server import HoneypotServer
 from core.command_engine import emulated_shell
+from core.threat_engine import log_connection
 
 
 # ── Logger factory ────────────────────────────────────────────────────────────
@@ -93,9 +96,10 @@ def handle_client(
 
         server.event.wait(10)
 
-        # Record connection in DB
+        # Record connection in DB and push to dashboard
         if db:
             db.insert_connection(client_ip, port)
+        log_connection(client_ip, port)
 
         emulated_shell(channel, client_ip, cmd_logger, db=db)
 

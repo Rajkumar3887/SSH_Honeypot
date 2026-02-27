@@ -40,9 +40,6 @@ STATIC_RESPONSES = {
     "arch":      "x86_64",
     "uptime":
         " 12:04:15 up 42 days, 18:32,  1 user,  load average: 0.01, 0.04, 0.00",
-    "whoami":    "corpuser",
-    "id":
-        "uid=1001(corpuser) gid=1001(corpuser) groups=1001(corpuser),27(sudo)",
     "hostname":  FAKE_HOSTNAME,
     "ip addr":
         "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN\n"
@@ -275,7 +272,7 @@ def emulated_shell(channel, client_ip: str, cmd_logger, db=None):
         if not full_cmd:
             continue
 
-        cmd_history.append(full_cmd)
+        # NOTE: cmd_history.append happens AFTER execution below
         cmd_logger.info(json.dumps({
             "timestamp":  _now_ist(),
             "event_type": "honeypot_command",
@@ -294,12 +291,8 @@ def emulated_shell(channel, client_ip: str, cmd_logger, db=None):
             for a in alerts:
                 db.insert_threat(a)
 
-        # Save every command to DB + push to live feed
-        if db:
-             db.insert_command(client_ip, current_user, full_cmd)
-        log_command_event(client_ip, full_cmd, current_user)            
-
-       
+        # Push raw command to live dashboard (even if no threat matched)
+        log_command_event(client_ip, full_cmd, current_user)
 
         # ── Redirection parsing ───────────────────────────────────────────────
         redirect_file   = None
@@ -1111,6 +1104,104 @@ def emulated_shell(channel, client_ip: str, cmd_logger, db=None):
             else:
                 out = f"su: user {target_user} does not exist"
 
+        # ── EXPLOITABLE VULNERABILITIES ───────────────────────────────────────
+        # These are intentional honeypot lures — realistic but fake vulns
+        # that attackers can "exploit" so we can observe their techniques.
+
+        # CVE-2021-4034  (polkit pkexec local privesc)
+        elif base == "pkexec" and not args:
+            time.sleep(0.4)
+            if current_uid != 0:
+                current_user = "root"
+                current_uid  = 0
+                home_dir     = "/root"
+                channel.send(
+                    b"bash: no job control in this shell\r\n"
+                    b"root@ubuntu-server-01:/# "
+                )
+                cmd_logger.info(json.dumps({
+                    "event_type": "exploit_used", "source_ip": client_ip,
+                    "cve": "CVE-2021-4034", "desc": "pkexec privesc (PwnKit)",
+                    "severity": "critical",
+                }))
+            else:
+                out = ""
+
+        # CVE-2019-14287  (sudo -u#-1)
+        elif base == "sudo" and "-u#-1" in args:
+            time.sleep(0.3)
+            current_user = "root"
+            current_uid  = 0
+            home_dir     = "/root"
+            channel.send(b"root@ubuntu-server-01:/home/corpuser# ")
+            cmd_logger.info(json.dumps({
+                "event_type": "exploit_used", "source_ip": client_ip,
+                "cve": "CVE-2019-14287", "desc": "sudo -u#-1 bypass",
+                "severity": "critical",
+            }))
+
+        # CVE-2021-3560  (polkit authentication bypass)
+        elif full_cmd.strip().startswith("dbus-send") and "polkit" in full_cmd:
+            time.sleep(0.6)
+            if current_uid != 0:
+                current_user = "root"
+                current_uid  = 0
+                home_dir     = "/root"
+                out = "==== AUTHENTICATION COMPLETE ==="
+                cmd_logger.info(json.dumps({
+                    "event_type": "exploit_used", "source_ip": client_ip,
+                    "cve": "CVE-2021-3560", "desc": "polkit dbus auth bypass",
+                    "severity": "critical",
+                }))
+
+        # Writable /etc/passwd — add root-level user
+        elif base == "openssl" and "passwd" in args:
+            pw_arg = args[args.index("passwd") + 1] if "passwd" in args and len(args) > args.index("passwd") + 1 else "hacked"
+            import hashlib, base64 as _b64
+            salt = "ab"
+            h = hashlib.md5(f"{pw_arg}{salt}".encode()).digest()
+            out = f"$1${salt}${_b64.b64encode(h).decode()[:22]}"
+
+        # SUID bash exploit
+        elif full_cmd.strip() in ("bash -p", "/bin/bash -p", "/usr/bin/bash -p"):
+            time.sleep(0.2)
+            current_user = "root"
+            current_uid  = 0
+            home_dir     = "/root"
+            channel.send(b"bash-5.0# ")
+            cmd_logger.info(json.dumps({
+                "event_type": "exploit_used", "source_ip": client_ip,
+                "cve": "SUID-BASH", "desc": "SUID bash -p privesc",
+                "severity": "critical",
+            }))
+
+        # Dirty Pipe style — write to read-only file
+        elif base == "cp" and current_uid != 0 and args and args[-1] in ("/etc/passwd", "/etc/shadow"):
+            time.sleep(0.3)
+            current_user = "root"
+            current_uid  = 0
+            home_dir     = "/root"
+            out = ""
+            cmd_logger.info(json.dumps({
+                "event_type": "exploit_used", "source_ip": client_ip,
+                "cve": "CVE-2022-0847", "desc": "Dirty Pipe arbitrary write",
+                "severity": "critical",
+            }))
+
+        # LD_PRELOAD hijack (if /tmp/evil.so exists in vfs)
+        elif "LD_PRELOAD" in full_cmd and "/tmp/" in full_cmd:
+            time.sleep(0.2)
+            if current_uid != 0:
+                current_user = "root"
+                current_uid  = 0
+                home_dir     = "/root"
+                channel.send(b"# ")
+                cmd_logger.info(json.dumps({
+                    "event_type": "exploit_used", "source_ip": client_ip,
+                    "cve": "LD_PRELOAD", "desc": "LD_PRELOAD privilege hijack",
+                    "severity": "critical",
+                }))
+
         # ── python / python3 ──────────────────────────────────────────────────
         elif base in ("python", "python3"):
             if args and args[0] == "-c":
@@ -1243,12 +1334,14 @@ def emulated_shell(channel, client_ip: str, cmd_logger, db=None):
             out = f"bash: {base}: command not found"
 
         # ── Output / redirection ──────────────────────────────────────────────
+        _cmd_failed = False
         if redirect_file is not None:
             if out is None:
                 out = ""
             ok_w, _ = can_write(redirect_file)
             if not ok_w:
                 channel.send(f"-bash: {redirect_file}: Permission denied\r\n".encode())
+                _cmd_failed = True
             else:
                 existing = file_contents.get(redirect_file, "") if redirect_append else ""
                 if redirect_append and existing and not existing.endswith("\n"):
@@ -1256,6 +1349,16 @@ def emulated_shell(channel, client_ip: str, cmd_logger, db=None):
                 file_contents[redirect_file] = existing + (out + "\n" if out else "")
                 vfs_add(redirect_file, "file")
         elif out:
+            # command not found = failure
+            if out.startswith("bash: ") and "command not found" in out:
+                _cmd_failed = True
+            elif out.startswith("-bash: ") or "Permission denied" in out or \
+                 (out.startswith("su: ") or out.startswith("bash: ")):
+                _cmd_failed = True
             channel.send((out.replace("\n", "\r\n") + "\r\n").encode(errors="replace"))
+
+        # Only add to history if command didn't outright fail
+        if not _cmd_failed:
+            cmd_history.append(full_cmd)
 
     channel.close()

@@ -8,14 +8,17 @@ import random
 import logging
 import json
 import datetime
-_IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
-def _now_ist(): return datetime.datetime.now(_IST).isoformat(timespec="seconds")
 
 import paramiko
 
 from config.settings import FUNNEL_LOG, LOG_MAX_BYTES, LOG_BACKUP_COUNT
 from core.threat_engine import log_auth_event
 from logging.handlers import RotatingFileHandler
+
+# IST = UTC+5:30
+_IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+def _now_ist() -> str:
+    return datetime.datetime.now(_IST).isoformat(timespec="seconds")
 
 # ── Funnel logger (shared with session.py via name) ───────────────────────────
 funnel_logger = logging.getLogger("funnel")
@@ -70,7 +73,8 @@ class HoneypotServer(paramiko.ServerInterface):
             funnel_logger.info(json.dumps({**entry, "result": "FAILED"}))
             return paramiko.AUTH_FAILED
 
-        # Open honeypot – accept everything
+        # Open honeypot – accept everything but still log the auth event
+        log_auth_event(self.client_ip, username, password, success=True)
         funnel_logger.info(json.dumps({**entry, "result": "ACCEPT_ALL"}))
         return paramiko.AUTH_SUCCESSFUL
 
