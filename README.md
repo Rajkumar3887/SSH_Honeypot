@@ -1,5 +1,7 @@
 <div align="center">
 
+![SSH Honeypot Banner](assets/banner.png)
+
 # 🍯 SSH Honeypot
 
 ### Enterprise-Grade SSH Deception Technology with Real-Time Threat Intelligence
