@@ -1,0 +1,27 @@
+# SSH Honeypot - Python Dependencies
+# ====================================
+# Install with: pip install -r requirements.txt
+
+# SSH server
+paramiko==4.0.0
+bcrypt==5.0.0
+cryptography==46.0.5
+PyNaCl==1.6.2
+
+# Web dashboard (FastAPI + uvicorn)
+fastapi==0.115.0
+uvicorn==0.30.6
+jinja2==3.1.6
+python-multipart==0.0.9
+sse-starlette==2.1.0
+
+# GeoIP lookups
+requests==2.32.3
+
+# Database
+# (SQLite is built-in to Python, no extra package needed)
+
+# Utilities
+pycparser==3.0
+cffi==2.0.0
+typing_extensions==4.15.0

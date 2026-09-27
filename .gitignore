@@ -1,0 +1,28 @@
+# Keys - NEVER commit
+server.key
+*.pem
+*.key
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment Variables
+.env
+.env.*

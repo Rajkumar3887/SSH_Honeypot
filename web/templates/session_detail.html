@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🍯 Session Detail</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="/static/charts.js"></script>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;
+  --green:#3fb950;--blue:#58a6ff;--orange:#d29922;
+  --red:#f85149;--purple:#bc8cff;--yellow:#e3b341;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",monospace;background:var(--bg);color:var(--text)}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:11px 22px;
+  background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:999}
+.nav-brand{font-size:16px;font-weight:700}
+.nav-brand span{color:var(--orange)}
+.nav a{color:var(--blue);font-size:12px;text-decoration:none}
+.nav a:hover{text-decoration:underline}
+
+.wrap{padding:18px 22px;max-width:1500px;margin:0 auto}
+
+/* HERO HEADER */
+.hero{display:flex;align-items:flex-start;gap:18px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:9px;
+  padding:18px 22px;margin-bottom:16px}
+.hero-ip{font-size:28px;font-weight:700;color:var(--blue);font-family:monospace}
+.hero-score-ring{flex-shrink:0;width:90px;height:90px;position:relative}
+.hero-score-ring canvas{width:90px!important;height:90px!important}
+.hero-score-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:22px;font-weight:700;text-align:center;line-height:1.1}
+.hero-score-lbl{font-size:9px;color:var(--muted);text-align:center}
+.hero-meta{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.meta-item{}
+.meta-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.meta-val{font-size:14px;font-weight:600;margin-top:3px}
+
+/* GRID */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.span2{grid-column:1/-1}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.card-hd{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.card-bd{padding:12px}
+
+/* TABS */
+.tabs{display:flex;border-bottom:1px solid var(--border)}
+.tab{padding:10px 16px;font-size:12px;color:var(--muted);cursor:pointer;
+  border-bottom:2px solid transparent;transition:.15s}
+.tab.active{color:var(--blue);border-color:var(--blue)}
+.tab-panel{display:none;padding:10px 0}
+.tab-panel.active{display:block}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-size:9px;
+  padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2)}
+td{padding:6px 8px;border-bottom:1px solid var(--bg3);vertical-align:top}
+tr:hover td{background:var(--bg3)}
+.tbl-wrap{max-height:300px;overflow-y:auto}
+.tbl-wrap::-webkit-scrollbar{width:3px}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--border)}
+
+.sv{font-size:9px;padding:2px 5px;border-radius:8px;font-weight:700;text-transform:uppercase}
+.sv-critical{background:#3a0a0a;color:var(--red)}
+.sv-high    {background:#3a2005;color:var(--orange)}
+.sv-medium  {background:#3a3005;color:var(--yellow)}
+.sv-low     {background:#0a3a0a;color:var(--green)}
+
+/* AUTH FEED */
+.auth-item{display:flex;align-items:center;gap:8px;padding:5px 8px;
+  border-bottom:1px solid var(--bg3);font-size:11px;font-family:monospace}
+.auth-item.ok{background:#0a2a0a}
+.auth-item.fail{background:#1a0808}
+.auth-icon{font-size:13px;flex-shrink:0}
+.auth-user{color:var(--blue);font-weight:600}
+.auth-pass{color:var(--muted)}
+.auth-ts{color:var(--muted);font-size:10px;margin-left:auto;flex-shrink:0}
+
+/* CMD LIST */
+.cmd-item{display:flex;align-items:flex-start;gap:8px;padding:5px 8px;
+  border-bottom:1px solid var(--bg3);font-size:11px;font-family:monospace}
+.cmd-prompt{color:var(--green);flex-shrink:0}
+.cmd-text{color:var(--text);word-break:break-all;flex:1}
+.cmd-ts{color:var(--muted);font-size:10px;flex-shrink:0}
+
+/* CATEGORY HITS */
+.cat-hits{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0}
+.cat-pill{font-size:11px;padding:3px 9px;border-radius:12px;font-weight:600}
+
+/* MAP */
+#smap{height:240px;border-radius:0 0 9px 9px}
+
+/* CHART */
+.ch{position:relative;height:220px}
+
+/* EMPTY */
+.empty{color:var(--muted);font-size:11px;text-align:center;padding:20px}
+
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">🍯 <span>HONEYPOT</span> · Session Detail</div>
+  <a href="/">← Back to Dashboard</a>
+</nav>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero" id="hero">
+    <div>
+      <div class="meta-lbl">Attacker IP</div>
+      <div class="hero-ip" id="h-ip">Loading…</div>
+      <div id="h-geo" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
+    </div>
+    <div class="hero-score-ring">
+      <canvas id="scoreRing"></canvas>
+      <div class="hero-score-num">
+        <span id="h-score">0</span>
+        <div class="hero-score-lbl">/ 100</div>
+      </div>
+    </div>
+    <div class="hero-meta">
+      <div class="meta-item"><div class="meta-lbl">Country</div><div class="meta-val" id="h-country">—</div></div>
+      <div class="meta-item"><div class="meta-lbl">City</div><div class="meta-val" id="h-city">—</div></div>
+      <div class="meta-item"><div class="meta-lbl">ISP</div><div class="meta-val" id="h-isp" style="font-size:12px">—</div></div>
+      <div class="meta-item"><div class="meta-lbl">Commands Run</div><div class="meta-val" id="h-cmds" style="color:var(--green)">0</div></div>
+      <div class="meta-item"><div class="meta-lbl">Auth Attempts</div><div class="meta-val" id="h-auth" style="color:var(--orange)">0</div></div>
+      <div class="meta-item"><div class="meta-lbl">Threats Fired</div><div class="meta-val" id="h-threats" style="color:var(--red)">0</div></div>
+      <div class="meta-item"><div class="meta-lbl">First Seen</div><div class="meta-val" id="h-first" style="font-size:11px">—</div></div>
+      <div class="meta-item"><div class="meta-lbl">Last Seen</div><div class="meta-val" id="h-last" style="font-size:11px">—</div></div>
+    </div>
+  </div>
+
+  <!-- ROW 1: timeline + radar + category hits -->
+  <div class="grid3">
+    <div class="card span2" style="grid-column:span 1">
+      <div class="card-hd">📈 Threat Timeline (this session)</div>
+      <div class="card-bd"><div class="ch"><canvas id="sessTl"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">🕸 Threat Surface</div>
+      <div class="card-bd"><div class="ch"><canvas id="sessRadar"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- ROW 2: map + category hits -->
+  <div class="grid2">
+    <div class="card">
+      <div class="card-hd">🌍 Origin</div>
+      <div id="smap"></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">🗂 Category Hit Distribution</div>
+      <div class="card-bd">
+        <div class="ch" style="height:200px"><canvas id="sessCat"></canvas></div>
+        <div class="cat-hits" id="catPills" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3: tabbed log viewer -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hd">📋 Session Logs</div>
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="commands">💻 Commands</div>
+      <div class="tab" data-tab="auth">🔑 Auth Attempts</div>
+      <div class="tab" data-tab="threats">⚠️ Threats</div>
+    </div>
+
+    <!-- commands -->
+    <div class="tab-panel active" id="tab-commands">
+      <div class="tbl-wrap" id="cmdLog" style="max-height:340px;padding:0 12px"></div>
+    </div>
+
+    <!-- auth -->
+    <div class="tab-panel" id="tab-auth">
+      <div class="tbl-wrap" id="authLog" style="max-height:340px;padding:0 12px"></div>
+    </div>
+
+    <!-- threats -->
+    <div class="tab-panel" id="tab-threats">
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Time</th><th>Category</th><th>Severity</th><th>Score</th><th>MITRE</th><th>Command / Message</th></tr></thead>
+        <tbody id="thrLog"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+HPC.setDefaults();
+
+const IP = "{{ ip }}";
+
+/* ── SCORE RING ── */
+let scoreRing;
+function initScoreRing(score){
+  const c=HPC.scoreColor(score);
+  scoreRing=new Chart(document.getElementById("scoreRing").getContext("2d"),{
+    type:"doughnut",
+    data:{datasets:[{data:[score,100-score],backgroundColor:[c+"cc","#21262d"],
+      borderWidth:0,hoverOffset:0}]},
+    options:{responsive:false,cutout:"72%",plugins:{legend:{display:false},tooltip:{enabled:false}}},
+  });
+  document.getElementById("h-score").style.color=c;
+  document.getElementById("h-score").textContent=score;
+}
+
+/* ── SESSION CHARTS ── */
+const sessTlChart  = HPC.makeSessionTimeline(document.getElementById("sessTl").getContext("2d"));
+const sessRadarChart= HPC.makeRadar(document.getElementById("sessRadar").getContext("2d"));
+let   sessCatChart = null;
+
+/* ── SESSION MAP ── */
+const smap=L.map("smap",{zoomControl:false,scrollWheelZoom:false,dragging:false});
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+  attribution:"© CARTO",subdomains:"abcd",maxZoom:19}).addTo(smap);
+
+/* ── TABS ── */
+document.getElementById("tabs").addEventListener("click",e=>{
+  const t=e.target.closest(".tab");if(!t)return;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  document.getElementById("tab-"+t.dataset.tab).classList.add("active");
+});
+
+/* ── LOAD SUMMARY ── */
+function load(){
+  fetch(`/api/session/${encodeURIComponent(IP)}/summary`)
+    .then(r=>r.json())
+    .then(d=>{
+      // hero
+      document.getElementById("h-ip").textContent=d.ip;
+      const geo=d.geo||{};
+      document.getElementById("h-geo").textContent=
+        [geo.city,geo.region,geo.country].filter(Boolean).join(", ");
+      document.getElementById("h-country").textContent=geo.country||"—";
+      document.getElementById("h-city").textContent=geo.city||"—";
+      document.getElementById("h-isp").textContent=geo.isp||"—";
+      document.getElementById("h-cmds").textContent=d.commands||0;
+      document.getElementById("h-auth").textContent=d.auth_attempts?.length||0;
+      document.getElementById("h-threats").textContent=d.threats?.length||0;
+
+      // connections first/last
+      if(d.connections?.length){
+        document.getElementById("h-first").textContent=(d.connections[d.connections.length-1].connected_at||"").substring(0,19);
+        document.getElementById("h-last").textContent=(d.connections[0].disconnected_at||d.connections[0].connected_at||"").substring(0,19);
+      }
+
+      // score ring
+      initScoreRing(d.score||0);
+
+      // map marker
+      if(geo.lat&&geo.lon){
+        smap.setView([geo.lat,geo.lon],6);
+        L.circleMarker([geo.lat,geo.lon],{radius:10,color:HPC.scoreColor(d.score||0),
+          fillColor:HPC.scoreColor(d.score||0),fillOpacity:.8,weight:2})
+          .bindPopup(`<b>${d.ip}</b><br>${geo.city||""}, ${geo.country||""}`)
+          .addTo(smap).openPopup();
+      }
+
+      // radar
+      const hits=d.category_hits||[];
+      const cats=["RECON","LATERAL","EXFIL","PERSISTENCE","PRIVESC","CRED_HUNT","MALWARE"];
+      const radarVals=cats.map(c=>hits.filter(h=>h===c).length);
+      sessRadarChart.data.datasets[0].data=radarVals;
+      sessRadarChart.update("none");
+
+      // category doughnut
+      const catCount={};
+      hits.forEach(c=>catCount[c]=(catCount[c]||0)+1);
+      const catLabels=Object.keys(catCount);
+      const catData=catLabels.map(c=>catCount[c]);
+      const catCtx=document.getElementById("sessCat").getContext("2d");
+      if(sessCatChart)sessCatChart.destroy();
+      sessCatChart=HPC.makeDoughnut(catCtx,catData,catLabels);
+
+      // category pills
+      const pills=document.getElementById("catPills");
+      pills.innerHTML=catLabels.map(c=>{
+        const col=HPC.CAT_COLORS[c]||"#666";
+        return `<span class="cat-pill" style="background:${col}22;color:${col}">${HPC.escHtml(c)} ×${catCount[c]}</span>`;
+      }).join("");
+
+      // commands tab
+      const cmdEl=document.getElementById("cmdLog");
+      if(!d.commands_log?.length){
+        cmdEl.innerHTML='<div class="empty">No commands recorded</div>';
+      } else {
+        cmdEl.innerHTML=d.commands_log.map(c=>`
+          <div class="cmd-item">
+            <span class="cmd-prompt">$</span>
+            <span class="cmd-text">${HPC.escHtml(c.command)}</span>
+            <span class="cmd-ts">${HPC.fmtTs(c.issued_at)}</span>
+          </div>`).join("");
+      }
+
+      // auth tab
+      const authEl=document.getElementById("authLog");
+      if(!d.auth_attempts?.length){
+        authEl.innerHTML='<div class="empty">No auth attempts recorded</div>';
+      } else {
+        authEl.innerHTML=d.auth_attempts.map(a=>`
+          <div class="auth-item ${a.success?'ok':'fail'}">
+            <span class="auth-icon">${a.success?"✅":"❌"}</span>
+            <span class="auth-user">${HPC.escHtml(a.username)}</span>
+            <span class="auth-pass">/ ${HPC.escHtml(a.password)}</span>
+            <span class="auth-ts">${HPC.fmtTs(a.attempted_at)}</span>
+          </div>`).join("");
+      }
+
+      // threats tab
+      const thrEl=document.getElementById("thrLog");
+      if(!d.threats?.length){
+        thrEl.innerHTML='<tr><td colspan="6" class="empty">No threats recorded</td></tr>';
+      } else {
+        thrEl.innerHTML=d.threats.map(t=>{
+          const sev=(t.severity||"low").toLowerCase();
+          const sc=t.session_score||0;
+          return `<tr>
+            <td style="color:var(--muted)">${HPC.fmtTs(t.detected_at)}</td>
+            <td style="color:${HPC.CAT_COLORS[t.category]||'#666'}">${HPC.escHtml(t.category||"?")}</td>
+            <td><span class="sv sv-${sev}">${sev}</span></td>
+            <td style="font-weight:700;color:${HPC.scoreColor(sc)}">${sc}</td>
+            <td style="color:var(--muted);font-size:10px">${HPC.escHtml(t.mitre_id||"")}</td>
+            <td style="font-family:monospace;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="${HPC.escHtml(t.message||"")}">
+              ${HPC.escHtml((t.command||t.message||"").substring(0,70))}
+            </td>
+          </tr>`;
+        }).join("");
+      }
+    })
+    .catch(()=>{
+      document.getElementById("h-ip").textContent=IP;
+    });
+
+  // threat timeline
+  fetch(`/api/session/${encodeURIComponent(IP)}/threat_timeline`)
+    .then(r=>r.json())
+    .then(d=>HPC.updateSessionTimeline(sessTlChart,d));
+}
+
+load();
+// reload every 30s if page is open
+setInterval(load, 30000);
+</script>
+</body>
+</html>

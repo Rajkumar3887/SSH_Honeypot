@@ -1,0 +1,210 @@
+<!--
+  Custom Wazuh Alert Rules for SSH Honeypot
+  ===========================================
+  Place this file at:
+    /var/ossec/etc/rules/honeypot_rules.xml
+  on your Wazuh manager, then restart wazuh-manager.
+
+  Rule ID range: 100100 – 100199 (reserved for this honeypot)
+
+  Severity levels:
+    3   = informational
+    5   = notice
+    7   = warning
+    10  = high
+    12  = critical
+    15  = maximum (reserved for MITRE mapped rules)
+-->
+
+<group name="honeypot,ssh_honeypot">
+
+  <!-- ────────────────────────────────────────────────────────────────────
+       CONNECTION / SESSION
+  ──────────────────────────────────────────────────────────────────────── -->
+
+  <rule id="100100" level="3">
+    <decoded_as>honeypot_session</decoded_as>
+    <field name="event_type">session_connect</field>
+    <description>SSH Honeypot: New inbound connection from $(srcip)</description>
+    <group>connection_attempt,</group>
+  </rule>
+
+  <rule id="100101" level="3">
+    <decoded_as>honeypot_session</decoded_as>
+    <field name="event_type">session_disconnect</field>
+    <description>SSH Honeypot: Connection closed from $(srcip)</description>
+    <group>connection_closed,</group>
+  </rule>
+
+  <!-- ────────────────────────────────────────────────────────────────────
+       AUTHENTICATION
+  ──────────────────────────────────────────────────────────────────────── -->
+
+  <rule id="100110" level="5">
+    <decoded_as>honeypot_auth</decoded_as>
+    <field name="event_type">ssh_auth_attempt</field>
+    <description>SSH Honeypot: Authentication attempt from $(srcip) user=$(srcuser)</description>
+    <group>authentication_attempt,</group>
+    <mitre>
+      <id>T1110</id>  <!-- Brute Force -->
+    </mitre>
+  </rule>
+
+  <rule id="100111" level="10" frequency="5" timeframe="60">
+    <if_matched_sid>100110</if_matched_sid>
+    <same_srcip/>
+    <description>SSH Honeypot: Brute-force attack from $(srcip) – 5+ attempts in 60 s</description>
+    <group>authentication_failures,brute_force,</group>
+    <mitre>
+      <id>T1110.001</id>  <!-- Password Guessing -->
+    </mitre>
+  </rule>
+
+  <rule id="100112" level="12" frequency="20" timeframe="60">
+    <if_matched_sid>100110</if_matched_sid>
+    <same_srcip/>
+    <description>SSH Honeypot: High-rate brute-force from $(srcip) – 20+ attempts in 60 s</description>
+    <group>authentication_failures,brute_force,high,</group>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+
+  <rule id="100113" level="10">
+    <decoded_as>honeypot_auth</decoded_as>
+    <field name="result">SUCCESS</field>
+    <description>SSH Honeypot: Successful login to honeypot from $(srcip) user=$(srcuser)</description>
+    <group>authentication_success,</group>
+  </rule>
+
+  <!-- ────────────────────────────────────────────────────────────────────
+       COMMAND EXECUTION
+  ──────────────────────────────────────────────────────────────────────── -->
+
+  <rule id="100120" level="5">
+    <decoded_as>honeypot_command</decoded_as>
+    <description>SSH Honeypot: Command executed by $(srcip) [$(srcuser)]: $(extra_data)</description>
+    <group>command_execution,</group>
+  </rule>
+
+  <!-- ────────────────────────────────────────────────────────────────────
+       THREAT DETECTIONS
+  ──────────────────────────────────────────────────────────────────────── -->
+
+  <rule id="100130" level="7">
+    <decoded_as>honeypot_threat</decoded_as>
+    <field name="category">RECON</field>
+    <description>SSH Honeypot: Reconnaissance detected from $(srcip): $(extra_data)</description>
+    <group>recon,</group>
+    <mitre>
+      <id>T1082</id>  <!-- System Information Discovery -->
+      <id>T1087</id>  <!-- Account Discovery -->
+    </mitre>
+  </rule>
+
+  <rule id="100131" level="10">
+    <decoded_as>honeypot_threat</decoded_as>
+    <field name="category">PRIVESC</field>
+    <description>SSH Honeypot: Privilege escalation attempt from $(srcip): $(extra_data)</description>
+    <group>privilege_escalation,</group>
+    <mitre>
+      <id>T1548</id>  <!-- Abuse Elevation Control Mechanism -->
+      <id>T1078</id>  <!-- Valid Accounts -->
+    </mitre>
+  </rule>
+
+  <rule id="100132" level="12">
+    <decoded_as>honeypot_threat</decoded_as>
+    <field name="category">EXFIL</field>
+    <description>SSH Honeypot: Data exfiltration command from $(srcip): $(extra_data)</description>
+    <group>exfiltration,</group>
+    <mitre>
+      <id>T1041</id>  <!-- Exfiltration Over C2 Channel -->
+      <id>T1048</id>  <!-- Exfiltration Over Alternative Protocol -->
+    </mitre>
+  </rule>
+
+  <rule id="100133" level="12">
+    <decoded_as>honeypot_threat</decoded_as>
+    <field name="category">PERSISTENCE</field>
+    <description>SSH Honeypot: Persistence mechanism from $(srcip): $(extra_data)</description>
+    <group>persistence,</group>
+    <mitre>
+      <id>T1547</id>  <!-- Boot or Logon Autostart Execution -->
+      <id>T1053</id>  <!-- Scheduled Task/Job -->
+    </mitre>
+  </rule>
+
+  <rule id="100134" level="10">
+    <decoded_as>honeypot_threat</decoded_as>
+    <field name="category">CRED_HUNT</field>
+    <description>SSH Honeypot: Credential harvesting from $(srcip): $(extra_data)</description>
+    <group>credential_access,</group>
+    <mitre>
+      <id>T1552</id>  <!-- Unsecured Credentials -->
+      <id>T1555</id>  <!-- Credentials from Password Stores -->
+    </mitre>
+  </rule>
+
+  <rule id="100135" level="15">
+    <decoded_as>honeypot_threat</decoded_as>
+    <field name="category">MALWARE</field>
+    <description>SSH Honeypot: Malware/C2 tool detected from $(srcip): $(extra_data)</description>
+    <group>malware,c2,</group>
+    <mitre>
+      <id>T1105</id>  <!-- Ingress Tool Transfer -->
+      <id>T1071</id>  <!-- Application Layer Protocol (C2) -->
+    </mitre>
+  </rule>
+
+  <!-- ────────────────────────────────────────────────────────────────────
+       FILE ACCESS
+  ──────────────────────────────────────────────────────────────────────── -->
+
+  <rule id="100140" level="7">
+    <decoded_as>honeypot_file_access</decoded_as>
+    <description>SSH Honeypot: Sensitive file accessed by $(srcip): $(extra_data)</description>
+    <group>file_access,</group>
+    <mitre>
+      <id>T1552.001</id>  <!-- Credentials in Files -->
+    </mitre>
+  </rule>
+
+  <!-- ────────────────────────────────────────────────────────────────────
+       PRIVILEGE ESCALATION (root shell)
+  ──────────────────────────────────────────────────────────────────────── -->
+
+  <rule id="100150" level="12">
+    <decoded_as>honeypot_privesc</decoded_as>
+    <field name="event_type">root_shell</field>
+    <description>SSH Honeypot: Attacker obtained ROOT shell from $(srcip)!</description>
+    <group>privilege_escalation,critical,</group>
+    <mitre>
+      <id>T1548</id>
+    </mitre>
+  </rule>
+
+  <rule id="100151" level="10">
+    <decoded_as>honeypot_privesc</decoded_as>
+    <field name="event_type">su_attempt</field>
+    <description>SSH Honeypot: su attempt to root from $(srcip) user=$(srcuser)</description>
+    <group>privilege_escalation,</group>
+    <mitre>
+      <id>T1548.003</id>  <!-- Sudo and Sudo Caching -->
+    </mitre>
+  </rule>
+
+  <!-- ────────────────────────────────────────────────────────────────────
+       DOWNLOADS (wget / curl)
+  ──────────────────────────────────────────────────────────────────────── -->
+
+  <rule id="100160" level="10">
+    <decoded_as>honeypot_download</decoded_as>
+    <description>SSH Honeypot: Remote file download by $(srcip) from $(url)</description>
+    <group>download,ingress_tool_transfer,</group>
+    <mitre>
+      <id>T1105</id>  <!-- Ingress Tool Transfer -->
+    </mitre>
+  </rule>
+
+</group>

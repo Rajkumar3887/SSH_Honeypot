@@ -1,0 +1,80 @@
+# docker-compose.override.yml.example
+# ═══════════════════════════════════════════════════════════════════════════════
+# Copy this file to docker-compose.override.yml and customize as needed.
+# Docker Compose automatically merges override files with docker-compose.yml.
+#
+# Usage:
+#   cp examples/docker-compose.override.yml.example docker-compose.override.yml
+#   # Edit as needed
+#   docker compose up -d
+# ═══════════════════════════════════════════════════════════════════════════════
+
+version: "3.9"
+
+services:
+
+  honeypot:
+    # ── Custom Environment Variables ─────────────────────────────────────────
+    environment:
+      # Change credentials (use strong values in production!)
+      - AUTH_USER=myuser
+      - AUTH_PASS=mystrongpassword123!
+
+      # Point to real Wazuh manager for live SIEM integration
+      - WAZUH_ENABLED=true
+      - WAZUH_SYSLOG_HOST=192.168.1.100   # <-- Change to your Wazuh IP
+      - WAZUH_SYSLOG_PORT=514
+      - WAZUH_SYSLOG_PROTO=udp
+
+      # Custom log paths
+      - LOG_DIR=/opt/honeypot/logs
+      - LOG_MAX_BYTES=10000000    # 10 MB per log file
+
+      # Custom database path
+      - DB_PATH=/opt/honeypot/data/honeypot.db
+
+    # ── Custom Port Bindings ─────────────────────────────────────────────────
+    ports:
+      - "22:2222"       # Expose on standard SSH port (requires root or cap_bind)
+      - "5000:5000"     # Dashboard
+
+    # ── Additional Volume Mounts ─────────────────────────────────────────────
+    volumes:
+      - ./logs:/opt/honeypot/logs
+      - ./data:/opt/honeypot/data       # Separate data dir for database
+      - ./server.key:/opt/honeypot/server.key  # Persist host key (keeps consistent fingerprint)
+
+    # ── Custom Command ───────────────────────────────────────────────────────
+    # Override the default command
+    command:
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "2222"
+      - "--user"
+      - "myuser"
+      - "--pass"
+      - "mystrongpassword123!"
+      - "--dashboard"
+      - "--dashboard-port"
+      - "5000"
+      - "--wazuh-host"
+      - "192.168.1.100"   # <-- Your Wazuh manager IP
+
+  # ── Wazuh Agent (optional - uncomment to enable) ─────────────────────────
+  # wazuh_agent:
+  #   image: wazuh/wazuh-agent:4.7.0
+  #   container_name: wazuh_agent
+  #   restart: unless-stopped
+  #   hostname: ssh-honeypot-agent
+  #   environment:
+  #     - WAZUH_MANAGER=192.168.1.100     # <-- Your Wazuh manager IP
+  #     - WAZUH_AGENT_NAME=ssh_honeypot
+  #     - WAZUH_AGENT_GROUP=honeypots
+  #   volumes:
+  #     - ./logs:/opt/honeypot/logs:ro    # Read-only access to honeypot logs
+  #     - ./wazuh/ossec.conf:/var/ossec/etc/ossec.conf:ro
+  #   depends_on:
+  #     - honeypot
+  #   networks:
+  #     - honeypot_net
